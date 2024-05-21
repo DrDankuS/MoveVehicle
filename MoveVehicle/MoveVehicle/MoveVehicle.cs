@@ -2,16 +2,14 @@
 using FivePD.API;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Dynamic;
 using System.Threading.Tasks;
-using FivePD.API.Utils;
 using CitizenFX.Core.UI;
 using CitizenFX.Core.Native;
 
 namespace MoveVehicle
 {
-    internal class MoveVehicle : Plugin
+    internal class MoveVehicle : FivePD.API.Plugin
     {
         private Vehicle lastStoppedVehicle;
         private Ped lastDriver;
@@ -19,14 +17,19 @@ namespace MoveVehicle
 
         internal MoveVehicle() : base()
         {
-            Tick += OnTick;
+            API.RegisterCommand("moveVehicle", new Action<int, List<object>, string>((source, args, rawCommand) =>
+            {
+                OnTick();     
+            }), false);
+            API.RegisterKeyMapping("moveVehicle", "Move Vehicle", "keyboard", "Q");
         }
 
-        private async Task OnTick()
+        private void OnTick()
         {
-            // Check if the Q key is pressed
-            if (Game.IsControlJustPressed(0, Control.Cover))
+            // Ensure this is executed on the client side
+            if (Game.PlayerPed.IsInVehicle())
             {
+
                 // Check if the player is performing a traffic stop
                 if (Utilities.IsPlayerPerformingTrafficStop())
                 {
@@ -34,40 +37,48 @@ namespace MoveVehicle
                     lastStoppedVehicle = Utilities.GetVehicleFromTrafficStop();
                     lastDriver = Utilities.GetDriverFromTrafficStop();
 
-                    if (lastDriver.IsFleeing)
+                    // Ensure the driver is in the vehicle before proceeding
+                    if (lastDriver.IsInVehicle())
                     {
-                        Screen.ShowNotification("You are in a pursit! They won't stop.");
-                    }
-                    else
-                    {
-                        if (lastStoppedVehicle != null && lastStoppedVehicle.Exists() && lastDriver != null && lastDriver.Exists())
+                        if (lastDriver.IsFleeing)
                         {
-                            // Clear all tasks from the driver
-                            lastDriver.Task.ClearAll();
-                            
-                            // Calculate the new destination ahead of the vehicle
-                            lastDestination = FindNextRoadsideLocation(lastStoppedVehicle);
-
-                            if (lastDestination != Vector3.Zero)
-                            {
-                                Screen.ShowNotification("Vehicle is moving to another position.");
-
-                                // Offset the destination position to the right by 2.0f units
-                                lastDestination += lastStoppedVehicle.RightVector + 4f;
-
-                                // Set a new driving task for the driver to the new destination
-                                lastDriver.Task.DriveTo(lastStoppedVehicle, lastDestination, 1f, 7f, 447) ;
-
-                            }else if(lastDestination == Vector3.Zero)
-                            {
-                                Screen.ShowNotification("Unable to find another safe space.");
-                            }
+                            Screen.ShowNotification("You are in a pursuit! They won't stop.");
                         }
                         else
                         {
-                            Screen.ShowNotification("No vehicle or driver found for traffic stop.");
+                            if (lastStoppedVehicle != null && lastStoppedVehicle.Exists() && lastDriver != null && lastDriver.Exists())
+                            {
+                                // Clear all tasks from the driver
+                                lastDriver.Task.ClearAll();
+
+                                // Calculate the new destination ahead of the vehicle
+                                lastDestination = FindNextRoadsideLocation(lastStoppedVehicle);
+
+                                if (lastDestination != Vector3.Zero)
+                                {
+                                    Screen.ShowNotification("Vehicle is moving to another position.");
+
+                                    // Offset the destination position to the right by 4.0f units
+                                    lastDestination += lastStoppedVehicle.RightVector * 4.0f;
+
+                                    // Set a new driving task for the driver to the new destination
+                                    lastDriver.Task.DriveTo(lastStoppedVehicle, lastDestination, 1f, 7f, 447);
+                                }
+                                else
+                                {
+                                    Screen.ShowNotification("Unable to find another safe space.");
+                                }
+                            }
+                            else
+                            {
+                                Screen.ShowNotification("No vehicle or driver found for traffic stop.");
+                            }
                         }
-                    }                    
+                    }
+                    else
+                    {
+                        Screen.ShowNotification("The driver is not in the vehicle.");
+                    }
                 }
                 else
                 {
@@ -103,5 +114,3 @@ namespace MoveVehicle
         }
     }
 }
-
-
